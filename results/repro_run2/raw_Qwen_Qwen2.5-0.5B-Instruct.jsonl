@@ -1,0 +1,6 @@
+{"idx": 0, "dataset": "gsm8k", "reference": "5", "direct_pred": "2.", "direct_correct": 0, "rewrite_correct": 0, "self1_correct": 0, "self3_correct": 0, "external_correct": 0}
+{"idx": 1, "dataset": "gsm8k", "reference": "490", "direct_pred": "1.", "direct_correct": 0, "rewrite_correct": 0, "self1_correct": 0, "self3_correct": 0, "external_correct": 0}
+{"idx": 2, "dataset": "gsm8k", "reference": "225", "direct_pred": "70", "direct_correct": 0, "rewrite_correct": 0, "self1_correct": 0, "self3_correct": 0, "external_correct": 0}
+{"idx": 3, "dataset": "commonsense_qa", "reference": "E", "direct_pred": "A", "direct_correct": 0, "rewrite_correct": 1, "self1_correct": 1, "self3_correct": 0, "external_correct": 0}
+{"idx": 4, "dataset": "commonsense_qa", "reference": "A", "direct_pred": "A", "direct_correct": 1, "rewrite_correct": 1, "self1_correct": 0, "self3_correct": 0, "external_correct": 1}
+{"idx": 5, "dataset": "commonsense_qa", "reference": "D", "direct_pred": "A", "direct_correct": 0, "rewrite_correct": 0, "self1_correct": 0, "self3_correct": 0, "external_correct": 0}

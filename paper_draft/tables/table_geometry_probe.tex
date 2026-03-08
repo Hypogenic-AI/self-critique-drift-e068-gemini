@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Deep-layer (layer 28) representation and separability summary on \qwenonefive. AUC values show pre$\rightarrow$post change from draft to revised condition.}
+\label{tab:geometry-probe}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Condition & Mean Cosine Drift & CKA (pre vs. post) & Probe AUC (pre $\rightarrow$ post) \\
+\midrule
+\rewrite & 0.3999 & 0.2354 & 0.818 $\rightarrow$ 0.545 \\
+\selfone & 0.3683 & 0.2034 & 0.818 $\rightarrow$ 0.750 \\
+\selfthree & \textbf{0.4230} & 0.1890 & 0.818 $\rightarrow$ \textbf{0.889} \\
+\external & 0.3439 & \textbf{0.2445} & 0.818 $\rightarrow$ 0.300 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,46 @@
+\section{Results}
+\label{sec:results}
+
+\para{Main behavioral outcomes.}
+\input{tables/table_accuracy}
+
+\Tabref{tab:accuracy-main} shows that revision prompts do not consistently improve accuracy over \direct in this sample regime. On \qwenonefive, \external is best at 0.34 (vs. 0.26 for \direct), while \selfthree drops to 0.22. On \qwenzerofive, absolute accuracy is lower overall, but the ranking is similar: \external is highest at 0.25.
+
+\input{tables/table_stats}
+
+As shown in \tabref{tab:stats-main}, none of the \qwenonefive pairwise comparisons is statistically significant after FDR correction (all $q=0.802$). This means observed accuracy differences should be interpreted as directional, not conclusive.
+
+\para{Representation drift and geometry.}
+\input{tables/table_geometry_probe}
+
+\Tabref{tab:geometry-probe} indicates substantial deep-layer drift under all revision conditions (0.3439--0.4230 cosine distance). CKA values are low-to-moderate (0.1890--0.2445), suggesting meaningful geometric reconfiguration. The largest drift occurs for \selfthree, while \external preserves the highest pre/post geometric similarity.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/drift_layers_Qwen_Qwen2.5-1.5B-Instruct.png}
+    \caption{Layer-wise cosine drift on \qwenonefive. Drift is non-trivial across depths and remains substantial in deeper layers.}
+    \label{fig:drift-main}
+\end{figure}
+
+\para{Separability and convergence across rounds.}
+Only \selfthree improves deepest-layer correctness separability (AUC 0.818 $\rightarrow$ 0.889), whereas \rewrite and \external reduce separability. This condition-specific result supports a partial, not universal, structured-drift claim.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/trajectory_Qwen_Qwen2.5-1.5B-Instruct.png}
+    \caption{Self-critique trajectory on \qwenonefive (layer 28). Step drift decreases across rounds (0.3683, 0.3598, 0.3347), consistent with partial convergence.}
+    \label{fig:trajectory-main}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/accuracy_Qwen_Qwen2.5-1.5B-Instruct.png}
+    \caption{Accuracy by prompting condition for \qwenonefive. Relative ordering changes across conditions, but significance tests are negative after correction.}
+    \label{fig:accuracy-main}
+\end{figure}
+
+\para{Behavioral triangulation with API model.}
+On \gptfourone ($n=20$), \direct achieves 1.00 accuracy and \selfone reaches 0.95, with Wilcoxon $p=1.0$. This small check further suggests that critique prompts do not guarantee behavioral gains even when base performance is high.
+
+\para{Ablation-style comparison by model size.}
+Comparing \qwenonefive and \qwenzerofive shows that the smaller model has much lower absolute accuracy and noisier probe behavior due class imbalance. The direction of condition ranking (\external often strongest behaviorally) remains similar, but uncertainty increases markedly.

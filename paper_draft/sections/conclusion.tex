@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \benchname, a reproducible framework for evaluating self-critique through both output metrics and residual-stream dynamics. Across \gsm and \csqa subsets, self-critique and revision prompts consistently produced substantial activation drift, while accuracy gains over \direct were not statistically significant in the primary run.
+
+Our main takeaway is that representational change and behavioral improvement are distinct empirical axes. Multi-round self-critique showed signs of structured internal change (improved deep-layer separability and decreasing step drift), but this did not translate into reliable accuracy gains at current scale.
+
+Future work should increase sample size (e.g., $\geq$200 per condition), add stronger controls (equal-token non-critique and shuffled-critique baselines), and analyze token-level trajectories with alignment tools such as SVCCA and Procrustes. Extending the same protocol to additional model families and truthfulness tasks will clarify when reflection-induced drift becomes predictively useful for performance.

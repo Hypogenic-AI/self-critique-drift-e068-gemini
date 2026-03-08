@@ -1,0 +1,14 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\para{What do the results imply?}
+The key pattern is clear: internal-state movement is large, while behavioral gains are small and statistically inconclusive. This decoupling matters for evaluation. A prompt can induce substantial residual-stream drift without improving task accuracy in a reliable way.
+
+\para{When is drift ``structured''?}
+Our evidence is condition-dependent. \selfthree shows both high drift and improved deep-layer separability, and its round-to-round drift decreases, which is consistent with convergence toward a more stable internal trajectory. However, this pattern does not hold for all revision prompts; \external improves raw accuracy but weakens probe separability at the analyzed layer.
+
+\para{Limitations.}
+Our main limitation is sample size (50 examples in the primary mechanistic run). We also analyze only final-token states, which can miss token-level trajectory structure. The study uses one run per condition set, so variance across random seeds and prompt perturbations remains unmeasured. The small-model probe estimates are unstable due class imbalance. Finally, API experiments provide behavior only, not internals.
+
+\para{Broader implications.}
+These findings suggest a practical protocol for reflection research: report mechanism and behavior separately, and test their coupling explicitly instead of assuming that one implies the other. For safety and reliability workflows, this separation can prevent over-claiming progress from prompt interventions that move representations but do not robustly improve correctness.

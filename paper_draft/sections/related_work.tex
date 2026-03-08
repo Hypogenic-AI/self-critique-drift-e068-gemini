@@ -1,0 +1,14 @@
+\section{Related Work}
+\label{sec:related}
+
+\para{Self-critique and iterative refinement.}
+Prompt-based revision methods such as \textsc{Reflexion} \citep{shinn2023reflexion} and \textsc{Self-Refine} \citep{madaan2023selfrefine} show that multi-step critique can improve generation quality without parameter updates. \textsc{Quiet-STaR} extends this direction by encouraging latent reasoning traces during generation \citep{zelikman2024quietstar}. Our work is complementary: instead of proposing a new prompting algorithm, we test whether critique prompts induce measurable internal-state structure beyond output changes.
+
+\para{Representation-level analyses of reflection and self-awareness.}
+Recent studies report identifiable reflection-related directions in hidden states and use representation engineering to steer this behavior \citep{zhu2025emergencecontrol,yan2025reflctrl}. Parallel work on factual self-awareness shows that linear features in residual activations can predict correctness \citep{tamoyan2025factual}. Additional findings on self-generated text recognition also point to interpretable residual-stream signatures \citep{ackerman2024selfgenerated}. Building on this line, we focus on \emph{dynamics}: we measure how representations drift and stabilize across critique rounds.
+
+\para{Evaluation and reliability benchmarks.}
+Reasoning and truthfulness benchmarks such as \gsm \citep{cobbe2021gsm8k}, \csqa \citep{talmor2019commonsenseqa}, and \truthfulqa \citep{lin2021truthfulqa} provide task-level outcomes for checking whether internal changes track performance. Work on verifiers further motivates separating process quality from final-answer quality \citep{cobbe2021verifiers}. Our experiments adopt this separation directly by reporting both behavioral metrics and mechanistic metrics under matched prompts.
+
+\para{Positioning.}
+Unlike prior static probing studies, we analyze multi-condition, multi-round trajectory behavior with paired statistical tests. Unlike prompting-only studies, we quantify residual-stream drift, CKA similarity, and correctness separability together. This combination directly addresses whether self-critique corresponds to structured internal reorganization.

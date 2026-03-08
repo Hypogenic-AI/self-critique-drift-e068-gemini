@@ -1,0 +1,22 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Self-critique has become a default tool for improving language model reasoning. In practice, many systems ask a model to draft, critique, and revise using methods such as \textsc{Reflexion} and \textsc{Self-Refine} \citep{shinn2023reflexion,madaan2023selfrefine}. This workflow often improves outputs, but the mechanism is still unclear.
+
+\para{{\bf why does this matter?}} If reflection only re-samples text without structured internal change, then observed gains may be brittle and hard to generalize. If reflection instead reorganizes hidden representations, then mechanistic signals can guide more reliable self-improvement pipelines.
+
+Recent work identifies latent reflection or self-awareness directions in activation space \citep{zhu2025emergencecontrol,yan2025reflctrl,tamoyan2025factual}. However, most analyses are static: they detect whether a representation exists, not how the representation moves over multiple critique rounds. Our main question is whether iterative self-critique drives convergence toward a more stable and correctness-separable reasoning manifold.
+
+We address this gap with \benchname, an evaluation harness that measures behavior and internal geometry jointly. On sampled \gsm and \csqa items, we compare \direct generation to four revision variants and extract residual-stream vectors across depth. We then quantify (i) behavioral accuracy, (ii) activation drift and CKA similarity, (iii) probe-based separability of correct vs. incorrect answers, and (iv) round-by-round trajectory stability.
+
+Our quantitative preview is mixed but informative. On \qwenonefive with $n=50$, all revision conditions produce substantial deep-layer drift (mean $0.3439$--$0.4230$), but none improves accuracy significantly versus \direct after FDR correction (all $q=0.802$). At the same time, \selfthree improves deepest-layer probe AUC from $0.818$ to $0.889$, and round-wise step drift decreases from $0.3683$ to $0.3347$.
+
+Our contributions are:
+\begin{itemize}
+    \item We propose a reproducible protocol that couples behavioral evaluation with residual-stream geometry across critique conditions and rounds.
+    \item We conduct a controlled comparison of rewrite, self-critique, and external-critique prompts on \gsm and \csqa using open local models.
+    \item We show that large representational drift can occur without statistically significant accuracy gains, motivating separate evaluation axes for mechanism and behavior.
+    \item We provide evidence of partial convergence and condition-dependent separability improvements, clarifying when self-critique appears structurally meaningful.
+\end{itemize}
+
+The rest of this paper is organized as follows. \Secref{sec:related} reviews relevant prompting and mechanistic work, \secref{sec:method} details our setup, \secref{sec:results} reports results, and \secref{sec:discussion} discusses limitations and implications.

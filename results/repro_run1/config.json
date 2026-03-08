@@ -1,0 +1,36 @@
+{
+  "timestamp_utc": "2026-03-08T06:57:21.605620",
+  "seed": 42,
+  "python": "3.12.8 (main, Dec 19 2024, 14:33:20) [Clang 18.1.8 ]",
+  "torch": "2.10.0+cu128",
+  "gpu": {
+    "cuda_available": true,
+    "cuda_count": 2,
+    "devices": [
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "memory_gb": 23.6
+      },
+      {
+        "name": "NVIDIA GeForce RTX 3090",
+        "memory_gb": 23.6
+      }
+    ]
+  },
+  "config": {
+    "data_root": "datasets",
+    "results_dir": "results/repro_run1",
+    "seed": 42,
+    "n_gsm": 30,
+    "n_csqa": 30,
+    "n_gsm_small": 3,
+    "n_csqa_small": 3,
+    "max_new_tokens": 24,
+    "temperature": 0.0,
+    "main_model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "small_model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "skip_openai": true,
+    "skip_main": true,
+    "skip_small": false
+  }
+}

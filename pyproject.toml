@@ -1,0 +1,18 @@
+[project]
+name = "research-workspace"
+version = "0.1.0"
+description = "Research workspace for representation drift under self-reflection"
+requires-python = ">=3.10"
+dependencies = [
+    "pypdf",
+    "requests",
+    "arxiv",
+    "datasets",
+    "pandas",
+    "matplotlib",
+    "seaborn"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

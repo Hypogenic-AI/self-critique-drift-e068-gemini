@@ -1,0 +1,62 @@
+[
+  {
+    "file": "papers/2109.07958_truthfulqa.pdf",
+    "pages": 39,
+    "ok": true,
+    "size_bytes": 819857
+  },
+  {
+    "file": "papers/2110.14168_training_verifiers_math_word_problems.pdf",
+    "pages": 22,
+    "ok": true,
+    "size_bytes": 2935719
+  },
+  {
+    "file": "papers/2303.11366_reflexion.pdf",
+    "pages": 19,
+    "ok": true,
+    "size_bytes": 591097
+  },
+  {
+    "file": "papers/2303.17651_self_refine.pdf",
+    "pages": 54,
+    "ok": true,
+    "size_bytes": 2014949
+  },
+  {
+    "file": "papers/2305.10601_tree_of_thoughts.pdf",
+    "pages": 14,
+    "ok": true,
+    "size_bytes": 799685
+  },
+  {
+    "file": "papers/2309.02144_reasoners_with_alignment.pdf",
+    "pages": 19,
+    "ok": true,
+    "size_bytes": 638017
+  },
+  {
+    "file": "papers/2312.08935_math_shepherd.pdf",
+    "pages": 15,
+    "ok": true,
+    "size_bytes": 827225
+  },
+  {
+    "file": "papers/2403.09629_quiet_star.pdf",
+    "pages": 26,
+    "ok": true,
+    "size_bytes": 971557
+  },
+  {
+    "file": "papers/2506.18167_reasoning_via_steering_vectors.pdf",
+    "pages": 19,
+    "ok": true,
+    "size_bytes": 897877
+  },
+  {
+    "file": "papers/2512.07667_depth_wise_activation_steering.pdf",
+    "pages": 11,
+    "ok": true,
+    "size_bytes": 517307
+  }
+]

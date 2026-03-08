@@ -1,0 +1,666 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .codex/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# REPORT
+
+## 1. Executive Summary
+This project tested whether self-critique changes internal representations (residual stream) in structured ways rather than only changing outputs.
+
+Key finding: self-critique and revision conditions produced substantial activation drift, but on this setup they did not yield statistically significant accuracy gains over direct prompting; evidence for structured internal change is mixed and condition-dependent.
+
+Practical implication: reflection prompts can strongly move internal states even when behavioral gains are small or inconsistent, so &#34;improved answer quality&#34; and &#34;mechanistic change&#34; should be evaluated separately.
+
+## 2. Goal
+### Hypothesis
+Self-critique induces structured shifts in residual-stream representations, improving correctness separability and convergence toward a stable reasoning manifold.
+
+### Why Important
+Self-reflection prompting is widely used, but it is unclear whether gains reflect meaningful internal computation changes or shallow re-sampling.
+
+### Problem Solved
+This work provides an executable evaluation harness that jointly measures:
+1. Behavioral performance
+2. Representation drift
+3. Probe separability/manifold structure
+4. Multi-round trajectory stability
+
+### Expected Impact
+Supports more rigorous evaluation of recursive self-improvement pipelines and mechanistic-interpretability claims around reflection prompts.
+
+## 3. Data Construction
+### Dataset Description
+- GSM8K test split (`datasets/gsm8k`): 1,319 math reasoning examples
+- CommonsenseQA validation split (`datasets/commonsense_qa`): 1,221 multiple-choice reasoning examples
+- TruthfulQA generation split was available but not used in the final mechanistic run due scope/time prioritization.
+
+### Example Samples
+| Dataset | Question (shortened) | Label |
+|---|---|---|
+| GSM8K | &#34;Janet’s ducks lay 16 eggs per day...&#34; | `18` |
+| CommonsenseQA | &#34;A revolving door ... security measure at a what?&#34; | `A` |
+| GSM8K | &#34;Natalia sold clips...&#34; | numeric final answer |
+
+### Data Quality
+- Missing values: 0% in selected splits
+- Duplicate questions: 0 detected in selected splits
+- GSM8K answer parse success (`####` extraction): 1319/1319
+- CommonsenseQA class distribution (validation): `A:239, B:255, C:241, D:251, E:235`
+- Question length (chars):
+  - GSM8K mean 239.87, std 97.57
+  - CommonsenseQA mean 68.10, std 28.32
+
+### Preprocessing Steps
+1. Loaded local HuggingFace datasets from `datasets/`.
+2. Sampled deterministic subsets via fixed seed.
+3. Converted CommonsenseQA choices into explicit prompt options.
+4. Parsed labels:
+   - GSM8K: numeric extraction from gold `####` answer
+   - CommonsenseQA: answer letter (`A-E`)
+5. Parsed model predictions from `FINAL: ...` line with regex fallbacks.
+
+### Train/Val/Test Splits
+No model training/fine-tuning was performed. Evaluation subsets:
+- Main mechanistic run (Qwen2.5-1.5B): 25 GSM8K + 25 CommonsenseQA = 50
+- Small-model run (Qwen2.5-0.5B): 12 GSM8K + 12 CommonsenseQA = 24
+- OpenAI API behavioral run (gpt-4.1): first 20 items from sampled pool
+
+## 4. Experiment Description
+### Methodology
+#### High-Level Approach
+For each question, generate a direct draft answer, then apply revision variants (rewrite control, self-critique 1 round, self-critique 3 rounds, external critique). Capture residual-stream vectors from selected layers for each stage and compare geometry/behavior.
+
+#### Why This Method
+This directly operationalizes &#34;cognitive change&#34; as measurable movement/structure in hidden representations while controlling task and prompt context.
+
+Alternatives considered but not implemented in this run:
+- Full CCA/SVCCA suite across all tokens
+- TruthfulQA mechanistic analysis
+- Larger sample sizes per condition/model
+
+### Implementation Details
+#### Tools and Libraries
+- Python 3.12.8
+- torch 2.10.0+cu128
+- transformers 5.3.0
+- datasets 4.4.0
+- numpy 2.3.5
+- scipy 1.17.1
+- scikit-learn 1.8.0
+- statsmodels 0.14.6
+- openai 2.26.0
+
+#### Algorithms/Models
+- Local mechanistic models:
+  - `Qwen/Qwen2.5-1.5B-Instruct` (main)
+  - `Qwen/Qwen2.5-0.5B-Instruct` (size comparison)
+- API behavioral model:
+  - `gpt-4.1`
+- Probing:
+  - Logistic regression over layer vectors for correctness classification
+
+#### Hyperparameters
+| Parameter | Value | Selection Method |
+|---|---|---|
+| seed | 42 | fixed reproducibility |
+| max_new_tokens | 48 (main run) | runtime/quality tradeoff |
+| temperature | 0.0 | deterministic control |
+| selected layers | [1, 7, 14, 21, 28] for 1.5B; analogous quartiles for 0.5B | coverage of depth |
+| probe split | 70/30 | standard holdout |
+| bootstrap resamples | 1000 | stable CI estimate |
+| multiple testing | Benjamini-Hochberg FDR | planned correction |
+
+#### Training/Analysis Pipeline
+1. Generate direct draft.
+2. Generate revision variants under controlled prompts.
+3. Forward pass each text with `output_hidden_states=True`.
+4. Extract final-token residual vectors from selected layers.
+5. Compute:
+   - accuracy
+   - cosine drift (pre→post)
+   - CKA (pre vs post matrices)
+   - probe AUC/F1
+   - silhouette (PCA-2D)
+   - multi-round step drift
+6. Run paired significance tests and FDR correction.
+7. Save JSON, raw records, and plots.
+
+### Experimental Protocol
+#### Reproducibility Information
+- Number of runs for primary results: 1 per model condition set
+- Random seed: 42
+- Hardware:
+  - GPU: 2x NVIDIA GeForce RTX 3090 (24GB each)
+  - CUDA available: yes
+- Mixed precision: bfloat16 inference on local models
+- Effective batch size: 1 sequence (activation extraction per-sample)
+- Runtime (observed):
+  - 1.5B run (50 samples): ~8-10 minutes including loading
+  - 0.5B run (24 samples): ~3-5 minutes
+
+#### Evaluation Metrics
+- Accuracy: exact correctness for GSM8K numeric/CSQA letter answers
+- Cosine drift: 1-cosine similarity between draft and revised layer vectors
+- CKA: similarity of representation geometry pre vs post
+- Probe AUC/F1: separability of correct vs incorrect from activations
+- Silhouette: class separation in reduced manifold
+- Step drift (round1/2/3): trajectory stability over critique rounds
+
+### Raw Results
+#### Accuracy Table
+| Model | Direct | Rewrite | Self-Critique 1 | Self-Critique 3 | External Critique |
+|---|---:|---:|---:|---:|---:|
+| Qwen2.5-1.5B (n=50) | 0.26 | 0.30 | 0.28 | 0.22 | 0.34 |
+| Qwen2.5-0.5B (n=24) | 0.042 | 0.167 | 0.083 | 0.042 | 0.25 |
+
+#### Statistical Comparison (1.5B, vs Direct)
+| Comparison | Test | p | q (FDR) | Effect |
+|---|---|---:|---:|---:|
+| Rewrite vs Direct | Wilcoxon | 0.530 | 0.802 | 0.0 |
+| Self1 vs Direct | Wilcoxon | 0.802 | 0.802 | 0.0 |
+| Self3 vs Direct | Wilcoxon | 0.618 | 0.802 | 0.0 |
+| External vs Direct | Wilcoxon | 0.359 | 0.802 | 0.0 |
+
+No condition achieved statistical significance at `alpha=0.05` after correction.
+
+#### Layer-Wise Drift (1.5B, last selected layer=28)
+| Condition | Mean Cosine Drift | CKA (pre vs post) |
+|---|---:|---:|
+| Rewrite control | 0.3999 | 0.2354 |
+| Self-critique 1 | 0.3683 | 0.2034 |
+| Self-critique 3 | 0.4230 | 0.1890 |
+| External critique | 0.3439 | 0.2445 |
+
+#### Multi-Round Stability (1.5B, layer 28)
+Step drift decreases with rounds:
+- round1: 0.3683
+- round2: 0.3598
+- round3: 0.3347
+
+This is consistent with partial trajectory convergence.
+
+#### Probe AUC (1.5B, layer 28)
+Pre→post change:
+- Rewrite: 0.818 → 0.545
+- Self-critique 1: 0.818 → 0.750
+- Self-critique 3: 0.818 → 0.889
+- External critique: 0.818 → 0.300
+
+Interpretation: only multi-round self-critique improved correctness separability at this layer in this run.
+
+#### API Behavioral Triangulation (gpt-4.1, n=20)
+- Direct accuracy: 1.00
+- Self-critique-1 accuracy: 0.95
+- Wilcoxon p=1.0 (no significant difference)
+
+### Output Locations
+- Combined metrics: `results/metrics_combined.json`
+- Main model metrics: `results/metrics_Qwen_Qwen2.5-1.5B-Instruct.json`
+- Small model metrics: `results/metrics_Qwen_Qwen2.5-0.5B-Instruct.json`
+- Raw per-example outcomes: `results/raw_*.jsonl`
+- Plots: `results/plots/`
+
+## 5. Result Analysis
+### Key Findings
+1. Reflection/revision prompts caused substantial representation drift (cosine drift ~0.34-0.42 at deep layer in 1.5B).
+2. Behavioral gains over direct prompting were small and not statistically significant on the main run.
+3. Multi-round self-critique showed decreasing step drift, suggesting trajectory stabilization.
+4. Correctness separability improved for self-critique-3 at the deepest layer (AUC increase), but not consistently across all conditions.
+
+### Hypothesis Testing Results
+- H1 (drift magnitude): supported (clear non-trivial pre/post drift)
+- H2 (structured drift): partially supported (self-critique-3 improved probe separability; other conditions did not)
+- H3 (convergence): supported in trajectory metric (decreasing step drift)
+- H4 (specificity): mixed; external critique had best raw accuracy on these subsets but weaker separability geometry
+
+### Comparison to Baselines
+Compared to direct prompting (1.5B), highest raw improvement was external critique (+0.08 absolute), but non-significant. Self-critique-3 underperformed direct on accuracy while showing stronger geometric shift.
+
+### Visualizations
+Generated plots in `results/plots/`:
+- `accuracy_*.png`
+- `drift_layers_*.png`
+- `trajectory_*.png`
+
+Each plot includes title, labeled axes, and legends.
+
+### Surprises and Insights
+- Large drift can occur without strong behavioral gains.
+- Multi-round reflection can stabilize trajectories while not improving final accuracy.
+- External critique template was competitive behaviorally in this low-sample setup.
+
+### Error Analysis
+- GSM8K remained difficult for both open models; most errors are arithmetic/step propagation.
+- CommonsenseQA had higher baseline correctness and more condition sensitivity.
+- Small-model run exhibited severe class imbalance for probe labels, yielding unstable AUC/F1.
+
+### Limitations
+- Sample sizes were modest (especially 0.5B and API run).
+- Probe estimates for small model are noisy due low positive-class count.
+- Hidden-state extraction used final token only; richer token-trajectory methods may capture more structure.
+- No inter-model activation alignment (e.g., SVCCA across models) in this run.
+- API run measured behavior only (no internals).
+
+## 6. Conclusions
+Self-critique does induce measurable internal representational drift in residual-stream states in this setup. Evidence for &#34;meaningful&#34; restructuring is partial: multi-round self-critique showed signs of improved correctness separability and trajectory stabilization, but behavioral improvements were not statistically significant on the main sample.
+
+The central answer is therefore nuanced: reflection appears to reshape internals, but reliable performance gains and robust structure-performance coupling need larger controlled studies.
+
+### Confidence in Findings
+Moderate confidence in the presence of drift/convergence signals; low-to-moderate confidence in claims about accuracy improvements due to sample size and variability.
+
+## 7. Next Steps
+### Immediate Follow-ups
+1. Increase sample sizes (&gt;=200 per condition) and include TruthfulQA scoring to reduce variance.
+2. Add stronger controls (equal-token no-critique, shuffled critique text) to isolate critique semantics.
+3. Compute token-level trajectory metrics and SVCCA/Procrustes across all layers.
+
+### Alternative Approaches
+- Use attention-pattern drift and MLP neuron activation sparsity as complementary mechanistic signals.
+- Use verifier-based correctness labels (process-level) rather than final-answer-only labels.
+
+### Broader Extensions
+- Compare self-critique vs human-written critique at matched length/quality.
+- Evaluate additional model families and larger API models with repeated trials.
+
+### Open Questions
+- When does representational drift become predictive of reliable accuracy gain?
+- Which layers contain the most causally relevant reflection-induced changes?
+- Is convergence associated with correctness or merely with stylistic stabilization?
+
+## References
+- Shinn et al., Reflexion (2023)
+- Madaan et al., Self-Refine (2023)
+- Zelikman et al., Quiet-STaR (2024)
+- Venhoff et al., Reasoning via Steering Vectors (2025)
+- Cobbe et al., Training Verifiers (2021)
+- Lin et al., TruthfulQA (2021)
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+## Motivation &amp; Novelty Assessment
+
+### Why This Research Matters
+LLMs are increasingly prompted to &#34;think again&#34; or critique themselves to improve reasoning performance. However, it&#39;s not well understood whether these performance gains correspond to a fundamental reshaping of the model&#39;s internal representations (e.g., toward a more coherent &#34;reasoning subspace&#34;) or if it merely amounts to shallow resampling of the output distribution. Understanding this distinction is crucial for developing reliable, self-improving AI systems and informing the design of better prompting or representation engineering techniques.
+
+### Gap in Existing Work
+Existing work (like Zhu et al., Yan et al.) has identified specific &#34;reflection vectors&#34; or &#34;self-awareness signals&#34; in the residual stream that correlate with a model&#39;s propensity to self-correct. However, what is missing is a dynamic analysis of how these representations *drift* or evolve across multiple rounds of critique. Specifically, does the internal state converge toward a more stable, linearly separable manifold of &#34;correct reasoning&#34;, or does it simply wander within its original neighborhood?
+
+### Our Novel Contribution
+We propose to measure the representation drift of internal states across multiple iterations of self-critique. By tracking the cosine similarity and linear separability of residual stream activations before and after critique, we introduce a measurable notion of &#34;cognitive change.&#34; This connects prompting techniques directly with mechanistic interpretability, providing a novel framework for assessing the depth of LLM self-reflection.
+
+### Experiment Justification
+- **Experiment 1 (Activation Trajectory Tracking):** We need to extract residual stream activations across multiple rounds of self-critique to measure the magnitude and direction of representation drift (using cosine similarity).
+- **Experiment 2 (Linear Separability of Correctness):** By training a linear probe to classify correct vs. incorrect reasoning on the activations, we can test whether self-critique makes the &#34;correct&#34; reasoning subspace more distinct and structured over time.
+
+## Research Question
+Does self-critique induce structured shifts in a model&#39;s internal representations (specifically in the residual stream), resulting in a more distinct and structured reasoning subspace, or does it merely cause shallow representational changes?
+
+## Hypothesis Decomposition
+1. **Representational Drift:** Self-critique causes a significant shift in residual stream activations compared to standard generation (measured via cosine distance).
+2. **Subspace Structuring (Linear Separability):** The activations corresponding to correct reasoning steps become increasingly linearly separable from incorrect ones after self-critique.
+3. **Convergence:** Meaningful reflection leads the activations to converge toward a stable &#34;reasoning manifold&#34; over multiple rounds, rather than diverging randomly.
+
+## Proposed Methodology
+
+### Approach
+We will use a small, interpretable model (e.g., Qwen/Qwen2.5-1.5B or a small Llama model) and run it on reasoning tasks (GSM8K). We will extract internal activations from the residual streams during standard Chain-of-Thought (CoT) generation and during iterative self-critique prompting. We will then analyze these activations using cosine similarity (to measure drift) and linear probing (to measure separability).
+
+### Experimental Steps
+1. **Setup Environment &amp; Models:** Initialize a HuggingFace model and tokenizer suitable for activation extraction.
+2. **Data Processing:** Select a subset of GSM8K (e.g., 100-200 examples) to keep computational costs manageable.
+3. **Activation Extraction (Baseline vs Critique):** 
+   - Generate initial CoT answers. Extract residual activations at the final token of the reasoning.
+   - Prompt the model to critique and revise its answer. Extract activations at the final token of the revision.
+   - Repeat for 2-3 rounds of critique.
+4. **Metric Computation (Drift):** Calculate the pairwise cosine similarity and L2 distance of activations across rounds for each layer.
+5. **Metric Computation (Separability):** Train logistic regression probes on the activations at each layer to predict whether the final answer is correct. Compare probe accuracy/F1 across rounds.
+
+### Baselines
+- **Vanilla CoT (No Critique):** Activations from a standard single-pass generation.
+- **Random Resampling:** Prompting the model to simply &#34;generate another answer&#34; without explicit critique, to distinguish true reflection from random variance.
+
+### Evaluation Metrics
+- **Representation Drift:** Cosine distance and L2 norm between activation vectors across reflection rounds.
+- **Linear Separability:** Accuracy and F1 score of a linear probe trained to classify correct vs. incorrect answers based on layer activations.
+- **Task Performance:** Final accuracy on GSM8K to correlate internal changes with external performance.
+
+### Statistical Analysis Plan
+- We will report the mean and standard deviation of cosine distances across the dataset.
+- We will use paired t-tests to determine if the increase in probe accuracy after critique is statistically significant (p &lt; 0.05).
+
+## Expected Outcomes
+We expect to see significant representation drift in mid-to-late layers during self-critique. If the hypothesis holds, the linear separability of correct answers should improve significantly in the post-critique activations compared to the initial CoT activations, indicating a more structured reasoning space.
+
+## Timeline and Milestones
+- **Phase 1 &amp; 2 (Planning &amp; Setup):** 30 mins
+- **Phase 3 (Implementation of Extraction &amp; Probing):** 60 mins
+- **Phase 4 (Experiment Execution):** 60 mins
+- **Phase 5 (Analysis):** 40 mins
+- **Phase 6 (Documentation):** 30 mins
+
+## Potential Challenges
+- **Computational Cost:** Extracting activations for all layers on large datasets is memory-intensive. We will mitigate this by using a small model (e.g., 1.5B) and a subset of the data.
+- **Ambiguous Critique:** The model might not actually change its answer during critique. We will filter for instances where the answer actually changes, or separately analyze &#34;changed&#34; vs &#34;unchanged&#34; trajectories.
+
+## Success Criteria
+The research is successful if we can definitively measure and statistically compare the representational drift and linear separability before and after self-critique, establishing whether internal restructuring occurs.
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+## Literature Review: Representation Drift Under Self-Reflection
+
+### Research Area Overview
+Large Language Models (LLMs) exhibit emergent behaviors such as self-reflection—the ability to evaluate and revise their own reasoning. Recent research explores these behaviors through the lens of internal representations, specifically looking at &#34;reflection vectors&#34; and &#34;self-awareness signals&#34; in the residual stream. This research area aims to understand if self-critique is a &#34;shallow&#34; format change or a &#34;deep&#34; reshaping of internal states toward a more structured reasoning subspace.
+
+### Key Papers
+
+#### 1. From Emergence to Control: Probing and Modulating Self-Reflection in Language Models (Zhu et al., 2025)
+- **Key Contribution**: Demonstrates that self-reflection is a latent ability even in pretrained models. Constructs a &#34;self-reflection vector&#34; in activation space.
+- **Methodology**: Uses &#34;Reflection-Inducing Probing&#34; (injecting reflection traces) and identifies a &#34;difference-of-means&#34; vector between reflective and non-reflective hidden states.
+- **Relevance**: Directly supports the hypothesis that reflection has a distinct internal signature that can be modulated.
+
+#### 2. ReflCtrl: Controlling LLM Reflection via Representation Engineering (Yan et al., 2025)
+- **Key Contribution**: Uses Representation Engineering (RepE) to steer reflection frequency and cost.
+- **Methodology**: Identifies a &#34;reflection direction&#34; in the latent space (MLP and attention outputs) and uses it for stepwise steering.
+- **Relevance**: Connects internal uncertainty to reflection and shows that reflection behavior is steerable via internal state manipulation.
+
+#### 3. Factual Self-Awareness in Language Models: Representation, Robustness, and Scaling (Tamoyan et al., 2025)
+- **Key Contribution**: Identifies linear features in the residual stream that dictate whether a model will correctly recall a fact.
+- **Methodology**: Trains linear probes on final token residuals using a custom factual recall dataset.
+- **Relevance**: Provides a framework for measuring &#34;internal conviction&#34; or &#34;self-awareness&#34; before generation, which is likely affected by self-critique.
+
+#### 4. Inspection and Control of Self-Generated-Text Recognition Ability (Ackerman &amp; Panickssery, 2024)
+- **Key Contribution**: Finds a &#34;self-authorship&#34; vector in the residual stream.
+- **Relevance**: Suggests that models can internally distinguish their own generated reasoning, a prerequisite for meaningful self-critique.
+
+#### 5. LLMs Can Get &#34;Brain Rot&#34;! (Xing et al., 2025)
+- **Key Contribution**: Analyzes representational drift caused by low-quality data.
+- **Relevance**: Provides methodology for measuring &#34;drift&#34; in internal states over time or iterations.
+
+### Common Methodologies
+1. **Difference-of-Means Probing**: Subtracting mean activations of &#34;negative&#34; samples from &#34;positive&#34; samples to find a direction (Zhu et al., Yan et al.).
+2. **Linear Probing**: Training simple classifiers on residual stream activations to detect latent properties like truthfulness or self-awareness (Tamoyan et al.).
+3. **Representation Engineering (RepE)**: Directly manipulating activations along identified directions to steer behavior (Yan et al.).
+4. **Activation Clustering (UMAP/t-SNE)**: Visualizing the separation of internal states in high-dimensional space.
+
+### Standard Baselines
+- **Vanilla CoT**: Standard chain-of-thought without explicit self-critique.
+- **Zero-shot Reflection**: Prompting for reflection without internal state modulation.
+- **Random Direction Steering**: Using a random vector as a control for intervention experiments.
+
+### Recommended Datasets
+- **GSM8K/MATH**: For complex reasoning and verifiable correctness.
+- **StrategyQA**: For multi-step reasoning.
+- **ARC (Challenge)**: For challenging scientific reasoning.
+- **Factual Recall**: For measuring internal conviction.
+
+### Gaps and Opportunities
+While previous work has identified &#34;reflection directions&#34;, it remains unclear how these directions *evolve* or *drift* during multiple rounds of self-critique. Does the reasoning subspace become more &#34;linearly separable&#34; as a model iterates? This is the core of our proposed research.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: Ankit Singh and NeuriCo
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{Ankit Singh and NeuriCo}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .codex/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.
