@@ -1,28 +1,23 @@
 \section{Methodology}
-\label{sec:method}
+\label{sec:methodology}
 
-\subsection{Research Question and Experimental Design}
-We test whether self-critique induces structured internal changes rather than only output variation. For each question, we generate one \direct draft and up to four revisions: \rewrite control, \selfone, \selfthree, and \external. We then compare both answers and hidden representations between pre- and post-revision states.
+We propose a dynamic approach to analyze the internal representational shifts during self-reflection. Our methodology focuses on \textit{representation drift}—the change in hidden state activations across reflection rounds—and its impact on the \textit{linear separability} of reasoning correctness.
 
-\subsection{Datasets and Splits}
-We use local copies of two reasoning datasets: \gsm test split (1,319 items) and \csqa validation split (1,221 items). The main mechanistic run uses a deterministic subset of 25 \gsm + 25 \csqa examples ($n=50$). A size-comparison run uses 12 + 12 examples ($n=24$). A behavioral-only API run uses 20 sampled items.
+\para{Experimental Conditions.} We evaluate five distinct inference conditions:
+\begin{enumerate}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \direct (Baseline): Standard zero-shot Chain-of-Thought (\CoT) generation.
+    \item \rewrite (Control): Prompting the model to "rewrite the answer for clarity" without altering the reasoning. This serves as a control for "shallow" representational change.
+    \item \selfone: One round of autonomous self-critique followed by a revised answer.
+    \item \selfthree: Three iterative rounds of autonomous self-critique and revision.
+    \item \external: Injecting task-specific "oracle" critiques (e.g., "double-check arithmetic") before asking the model to revise.
+\end{enumerate}
 
-Data quality checks reported zero missing values, zero detected duplicates, and complete gold-label parse success for \gsm (1319/1319). For \csqa, class counts are near balanced (A:239, B:255, C:241, D:251, E:235).
+\para{Activation Extraction.} We extract residual stream activations at the final token of the generated reasoning across multiple hidden layers (specifically at $1/4$, $1/2$, $3/4$, and the final layer of the transformer block). All extractions are performed using greedy decoding (temperature 0.0) to isolate representational changes strictly caused by the prompt condition rather than sampling variance.
 
-\subsection{Models and Implementation}
-Local mechanistic runs use \qwenonefive (primary) and \qwenzerofive (size comparison). Behavioral triangulation uses \gptfourone via API. We run deterministic decoding with temperature 0 and max 48 new tokens in the main run. Hidden states are extracted with \texttt{output\_hidden\_states=True}, using final-token residual vectors from depth-spanning selected layers (for \qwenonefive: layers 1, 7, 14, 21, 28).
-
-Environment: Python 3.12.8, PyTorch 2.10.0+cu128, Transformers 5.3.0, Datasets 4.4.0, NumPy 2.3.5, SciPy 1.17.1, scikit-learn 1.8.0, statsmodels 0.14.6. Hardware includes two RTX 3090 GPUs (24GB each) with bfloat16 inference.
-
-\subsection{Metrics}
-We evaluate:
-\begin{itemize}
-    \item \textbf{Behavior}: exact-match accuracy for \gsm numeric answers and \csqa option labels.
-    \item \textbf{Drift}: cosine distance between draft and revised activations.
-    \item \textbf{Geometry retention}: centered kernel alignment (CKA) between pre/post representation matrices.
-    \item \textbf{Correctness separability}: logistic-probe AUC/F1 for correct vs. incorrect outcomes.
-    \item \textbf{Trajectory stability}: round-to-round drift across three self-critique iterations.
+\para{Metrics.} We use two primary metrics to quantify internal change:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \textbf{Representation Drift:} Calculated as the mean cosine distance between the initial draft activations and the revised activations at each layer. Drift $D = 1 - \cos(\mathbf{h}_{draft}, \mathbf{h}_{revised})$.
+    \item \textbf{Linear Separability (AUC):} We train logistic regression probes on the cached activations to classify whether the final answer generated after a given condition is correct. We compare the Area Under the Curve (AUC) of the probes trained on activations before (Pre) and after (Post) the reflection process.
 \end{itemize}
 
-\subsection{Statistical Analysis and Baselines}
-The baseline is \direct prompting. We compare each revision condition to \direct with paired Wilcoxon signed-rank tests and apply Benjamini--Hochberg FDR correction across comparisons. Probe results are reported descriptively due limited sample size, especially for the small-model run where class imbalance makes AUC/F1 unstable.
+\para{Implementation Details.} Our experiments use \qwenonefive and \qwenzerofive from the \textsc{Qwen2.5} series. We evaluate on balanced subsets of \gsm \citep{cobbe2021gsm8k} and \csqa \citep{talmor2019csqa}. Models are run in \texttt{bfloat16} precision using the HuggingFace \texttt{transformers} library. The \gsm task uses mathematical reference answers for validation, while \csqa uses multiple-choice keys.

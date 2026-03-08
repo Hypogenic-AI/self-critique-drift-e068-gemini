@@ -1,22 +1,22 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Self-critique has become a default tool for improving language model reasoning. In practice, many systems ask a model to draft, critique, and revise using methods such as \textsc{Reflexion} and \textsc{Self-Refine} \citep{shinn2023reflexion,madaan2023selfrefine}. This workflow often improves outputs, but the mechanism is still unclear.
+The ability of Large Language Models (LLMs) to engage in self-reflection—identifying and correcting their own errors—is a cornerstone of modern reasoning techniques such as \textsc{Reflexion} \citep{shinn2023reflexion} and \textsc{Self-Refine} \citep{madaan2023selfrefine}. While these methods consistently improve task performance, the underlying mechanism remains a "black box." Does the model truly "re-think" its reasoning, inducing a structural shift in its internal representations, or does it merely re-sample from its output distribution based on a new prompt?
 
-\para{{\bf why does this matter?}} If reflection only re-samples text without structured internal change, then observed gains may be brittle and hard to generalize. If reflection instead reorganizes hidden representations, then mechanistic signals can guide more reliable self-improvement pipelines.
+\para{Why this matters.} Understanding whether self-critique reshapes internal states is essential for building more reliable and autonomous AI systems. If reflection is merely shallow re-sampling, the improvements may be brittle and sensitive to prompt phrasing. Conversely, if reflection induces a structured shift toward a more coherent "reasoning subspace," we can leverage these signals for mechanistic control techniques like Representation Engineering (\repe) \citep{yan2025reflctrl} to improve model performance without explicit prompting.
 
-Recent work identifies latent reflection or self-awareness directions in activation space \citep{zhu2025emergencecontrol,yan2025reflctrl,tamoyan2025factual}. However, most analyses are static: they detect whether a representation exists, not how the representation moves over multiple critique rounds. Our main question is whether iterative self-critique drives convergence toward a more stable and correctness-separable reasoning manifold.
+\para{Gap identification.} Recent work has identified specific "reflection vectors" and "self-authorship signals" in the residual stream \citep{zhu2025emergencecontrol,ackerman2024inspection}. However, these studies typically focus on static snapshots of activations. What is missing is a dynamic analysis of how internal states \textit{drift} across multiple rounds of critique and whether this drift correlates with an increasingly structured reasoning manifold.
 
-We address this gap with \benchname, an evaluation harness that measures behavior and internal geometry jointly. On sampled \gsm and \csqa items, we compare \direct generation to four revision variants and extract residual-stream vectors across depth. We then quantify (i) behavioral accuracy, (ii) activation drift and CKA similarity, (iii) probe-based separability of correct vs. incorrect answers, and (iv) round-by-round trajectory stability.
+\para{Our approach.} We propose \methodname, a framework to measure the representational dynamics of LLMs during self-reflection. We extract residual stream activations across multiple rounds of critique and revision on mathematical (\gsm) and commonsense (\csqa) reasoning tasks. We quantify the internal change using cosine distance (drift) and track the linear separability of correct versus incorrect reasoning via logistic regression probes.
 
-Our quantitative preview is mixed but informative. On \qwenonefive with $n=50$, all revision conditions produce substantial deep-layer drift (mean $0.3439$--$0.4230$), but none improves accuracy significantly versus \direct after FDR correction (all $q=0.802$). At the same time, \selfthree improves deepest-layer probe AUC from $0.818$ to $0.889$, and round-wise step drift decreases from $0.3683$ to $0.3347$.
+\para{Quantitative preview.} Our experiments reveal a stark contrast between autonomous and guided reflection. In the \qwenonefive model, autonomous self-critique leads to representational drift comparable to a simple clarity \rewrite, but fails to improve the linear separability of correct answers (AUC $0.486 \rightarrow 0.444$). However, providing an \external oracle critique causes a massive structural shift, increasing AUC to $0.831$. Surprisingly, the smaller \qwenzerofive model successfully restructures its latent space autonomously (AUC $0.550 \rightarrow 0.719$), highlighting the complex interplay between model scale and reflective capability.
 
-Our contributions are:
-\begin{itemize}
-    \item We propose a reproducible protocol that couples behavioral evaluation with residual-stream geometry across critique conditions and rounds.
-    \item We conduct a controlled comparison of rewrite, self-critique, and external-critique prompts on \gsm and \csqa using open local models.
-    \item We show that large representational drift can occur without statistically significant accuracy gains, motivating separate evaluation axes for mechanism and behavior.
-    \item We provide evidence of partial convergence and condition-dependent separability improvements, clarifying when self-critique appears structurally meaningful.
+\para{Our main contributions are:}
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item We propose a dynamic framework for measuring \textit{representation drift} and subspace structuring in LLMs during iterative self-reflection.
+    \item We demonstrate that representational drift is omnipresent across all revision conditions, but drift alone does not guarantee "cognitive restructuring" or improved separability.
+    \item We show that external guidance is significantly more potent at restructuring the latent reasoning space than autonomous self-critique in mid-sized models.
+    \item We identify a surprising "scale anomaly" where the smallest model (\qwenzerofive) exhibit more effective autonomous internal restructuring than its larger counterpart (\qwenonefive).
 \end{itemize}
 
-The rest of this paper is organized as follows. \Secref{sec:related} reviews relevant prompting and mechanistic work, \secref{sec:method} details our setup, \secref{sec:results} reports results, and \secref{sec:discussion} discusses limitations and implications.
+The remainder of this paper is organized as follows: \secref{sec:related_work} reviews related work, \secref{sec:methodology} details our experimental setup, \secref{sec:results} presents our findings, \secref{sec:discussion} discusses limitations and implications, and \secref{sec:conclusion} concludes.

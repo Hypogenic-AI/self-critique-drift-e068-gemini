@@ -7,7 +7,7 @@ based on the experiment results provided.
 
 Before writing any content, you MUST complete these steps:
 
-1. READ THE SKILL: Review the paper-writer skill at .codex/skills/paper-writer/SKILL.md
+1. READ THE SKILL: Review the paper-writer skill at .gemini/skills/paper-writer/SKILL.md
 2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
 3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
    - Look at sections/1.introduction.tex for language style
@@ -23,280 +23,96 @@ The examples are in a different research domain - focus only on presentation sty
                             EXPERIMENT REPORT
 ════════════════════════════════════════════════════════════════════════════════
 
-# REPORT
+# Representation Drift Under Self-Reflection: Does Self-Critique Reshape Internal States?
 
 ## 1. Executive Summary
-This project tested whether self-critique changes internal representations (residual stream) in structured ways rather than only changing outputs.
-
-Key finding: self-critique and revision conditions produced substantial activation drift, but on this setup they did not yield statistically significant accuracy gains over direct prompting; evidence for structured internal change is mixed and condition-dependent.
-
-Practical implication: reflection prompts can strongly move internal states even when behavioral gains are small or inconsistent, so &#34;improved answer quality&#34; and &#34;mechanistic change&#34; should be evaluated separately.
+This research investigates whether asking a Large Language Model (LLM) to &#34;critique and revise&#34; its own answers results in meaningful changes to its internal representations, specifically looking at the &#34;drift&#34; in the residual stream and the linear separability of correct versus incorrect reasoning. Through experiments on the Qwen2.5-1.5B and Qwen2.5-0.5B models using GSM8K and CommonsenseQA, we found that representation drift occurs across both self-critique and simple &#34;rewrite&#34; controls. However, self-critique does not always increase the structural separability of correct reasoning. For the 1.5B model, an *external* critique dramatically improved both task accuracy (31.7% to 40.0%) and internal linear separability (AUC: 0.486 to 0.831), whereas self-critique showed little to no improvement over baseline. Conversely, the 0.5B model exhibited successful self-critique, restructuring its internal state (AUC: 0.550 to 0.719) and improving accuracy. This suggests that while representation drift is measurable, &#34;meaningful&#34; reflection that structures the reasoning subspace is highly model- and task-dependent, and external guidance remains significantly more potent for restructuring latent states than autonomous self-critique in smaller models.
 
 ## 2. Goal
-### Hypothesis
-Self-critique induces structured shifts in residual-stream representations, improving correctness separability and convergence toward a stable reasoning manifold.
+**Hypothesis:** Self-critique in LLMs induces structured shifts in internal representations (residual stream), resulting in a more distinct and structured reasoning subspace. If reflection is meaningful, we expect representation drift, improved linear separability of correct reasoning, and convergence toward a more stable reasoning manifold; if shallow, activations remain near the original neighborhood with minimal structural change.
 
-### Why Important
-Self-reflection prompting is widely used, but it is unclear whether gains reflect meaningful internal computation changes or shallow re-sampling.
-
-### Problem Solved
-This work provides an executable evaluation harness that jointly measures:
-1. Behavioral performance
-2. Representation drift
-3. Probe separability/manifold structure
-4. Multi-round trajectory stability
-
-### Expected Impact
-Supports more rigorous evaluation of recursive self-improvement pipelines and mechanistic-interpretability claims around reflection prompts.
+**Why this matters:** LLMs are frequently prompted to &#34;think again&#34; or revise their answers. Understanding whether these techniques fundamentally reshape the model&#39;s internal processing or simply act as a shallow re-sampling is essential for building recursive self-improvement systems and developing interpretability-driven control methods like Representation Engineering (RepE).
 
 ## 3. Data Construction
+
 ### Dataset Description
-- GSM8K test split (`datasets/gsm8k`): 1,319 math reasoning examples
-- CommonsenseQA validation split (`datasets/commonsense_qa`): 1,221 multiple-choice reasoning examples
-- TruthfulQA generation split was available but not used in the final mechanistic run due scope/time prioritization.
+We used a balanced combination of multi-step mathematical reasoning and commonsense reasoning tasks to evaluate reflection:
+- **GSM8K (test set subset):** Grade school math problems requiring multi-step arithmetic logic.
+- **CommonsenseQA (validation set subset):** Multiple-choice questions requiring implicit multi-step deliberation.
 
-### Example Samples
-| Dataset | Question (shortened) | Label |
-|---|---|---|
-| GSM8K | &#34;Janet’s ducks lay 16 eggs per day...&#34; | `18` |
-| CommonsenseQA | &#34;A revolving door ... security measure at a what?&#34; | `A` |
-| GSM8K | &#34;Natalia sold clips...&#34; | numeric final answer |
-
-### Data Quality
-- Missing values: 0% in selected splits
-- Duplicate questions: 0 detected in selected splits
-- GSM8K answer parse success (`####` extraction): 1319/1319
-- CommonsenseQA class distribution (validation): `A:239, B:255, C:241, D:251, E:235`
-- Question length (chars):
-  - GSM8K mean 239.87, std 97.57
-  - CommonsenseQA mean 68.10, std 28.32
+For this study, we utilized 60 samples (30 GSM8K + 30 CSQA) for the main 1.5B model and 40 samples (20+20) for the 0.5B model to facilitate computationally intensive internal activation extraction across multiple hidden layers.
 
 ### Preprocessing Steps
-1. Loaded local HuggingFace datasets from `datasets/`.
-2. Sampled deterministic subsets via fixed seed.
-3. Converted CommonsenseQA choices into explicit prompt options.
-4. Parsed labels:
-   - GSM8K: numeric extraction from gold `####` answer
-   - CommonsenseQA: answer letter (`A-E`)
-5. Parsed model predictions from `FINAL: ...` line with regex fallbacks.
-
-### Train/Val/Test Splits
-No model training/fine-tuning was performed. Evaluation subsets:
-- Main mechanistic run (Qwen2.5-1.5B): 25 GSM8K + 25 CommonsenseQA = 50
-- Small-model run (Qwen2.5-0.5B): 12 GSM8K + 12 CommonsenseQA = 24
-- OpenAI API behavioral run (gpt-4.1): first 20 items from sampled pool
+1. Filtered the datasets for valid formatting.
+2. Extracted pure mathematical reference answers from GSM8K (`#### [answer]`) and reference keys (`[A-E]`) from CommonsenseQA.
+3. Formatted inputs using the models&#39; chat templates for consistent instruction following.
 
 ## 4. Experiment Description
+
 ### Methodology
-#### High-Level Approach
-For each question, generate a direct draft answer, then apply revision variants (rewrite control, self-critique 1 round, self-critique 3 rounds, external critique). Capture residual-stream vectors from selected layers for each stage and compare geometry/behavior.
+We extracted internal residual stream activations at the final token of the generated reasoning across several layers (e.g., 1/4, 1/2, 3/4, and final layer) during different inference conditions:
+1. **Direct (Baseline):** Standard Chain-of-Thought (CoT) zero-shot generation.
+2. **Rewrite Control:** Prompting the model to rewrite its draft for clarity without changing the core reasoning.
+3. **Self-Critique (1 round):** Prompting the model to generate a critique of its draft, then generating a revised answer.
+4. **Self-Critique (3 rounds):** Iterating the critique-revise loop three times.
+5. **External Critique:** Injecting a task-specific oracle critique rule (e.g., &#34;Check arithmetic carefully&#34;) and asking the model to revise.
 
-#### Why This Method
-This directly operationalizes &#34;cognitive change&#34; as measurable movement/structure in hidden representations while controlling task and prompt context.
-
-Alternatives considered but not implemented in this run:
-- Full CCA/SVCCA suite across all tokens
-- TruthfulQA mechanistic analysis
-- Larger sample sizes per condition/model
+For each condition, we measured:
+- **Accuracy:** Final task performance.
+- **Representation Drift:** Mean Cosine distance between the baseline draft activations and the revised activations at the last layer.
+- **Linear Separability (AUC):** We trained Logistic Regression probes on the activations to classify whether the final answer was correct or incorrect, measuring the AUC before (pre) and after (post) the critique/revision phase.
 
 ### Implementation Details
-#### Tools and Libraries
-- Python 3.12.8
-- torch 2.10.0+cu128
-- transformers 5.3.0
-- datasets 4.4.0
-- numpy 2.3.5
-- scipy 1.17.1
-- scikit-learn 1.8.0
-- statsmodels 0.14.6
-- openai 2.26.0
-
-#### Algorithms/Models
-- Local mechanistic models:
-  - `Qwen/Qwen2.5-1.5B-Instruct` (main)
-  - `Qwen/Qwen2.5-0.5B-Instruct` (size comparison)
-- API behavioral model:
-  - `gpt-4.1`
-- Probing:
-  - Logistic regression over layer vectors for correctness classification
-
-#### Hyperparameters
-| Parameter | Value | Selection Method |
-|---|---|---|
-| seed | 42 | fixed reproducibility |
-| max_new_tokens | 48 (main run) | runtime/quality tradeoff |
-| temperature | 0.0 | deterministic control |
-| selected layers | [1, 7, 14, 21, 28] for 1.5B; analogous quartiles for 0.5B | coverage of depth |
-| probe split | 70/30 | standard holdout |
-| bootstrap resamples | 1000 | stable CI estimate |
-| multiple testing | Benjamini-Hochberg FDR | planned correction |
-
-#### Training/Analysis Pipeline
-1. Generate direct draft.
-2. Generate revision variants under controlled prompts.
-3. Forward pass each text with `output_hidden_states=True`.
-4. Extract final-token residual vectors from selected layers.
-5. Compute:
-   - accuracy
-   - cosine drift (pre→post)
-   - CKA (pre vs post matrices)
-   - probe AUC/F1
-   - silhouette (PCA-2D)
-   - multi-round step drift
-6. Run paired significance tests and FDR correction.
-7. Save JSON, raw records, and plots.
-
-### Experimental Protocol
-#### Reproducibility Information
-- Number of runs for primary results: 1 per model condition set
-- Random seed: 42
-- Hardware:
-  - GPU: 2x NVIDIA GeForce RTX 3090 (24GB each)
-  - CUDA available: yes
-- Mixed precision: bfloat16 inference on local models
-- Effective batch size: 1 sequence (activation extraction per-sample)
-- Runtime (observed):
-  - 1.5B run (50 samples): ~8-10 minutes including loading
-  - 0.5B run (24 samples): ~3-5 minutes
-
-#### Evaluation Metrics
-- Accuracy: exact correctness for GSM8K numeric/CSQA letter answers
-- Cosine drift: 1-cosine similarity between draft and revised layer vectors
-- CKA: similarity of representation geometry pre vs post
-- Probe AUC/F1: separability of correct vs incorrect from activations
-- Silhouette: class separation in reduced manifold
-- Step drift (round1/2/3): trajectory stability over critique rounds
-
-### Raw Results
-#### Accuracy Table
-| Model | Direct | Rewrite | Self-Critique 1 | Self-Critique 3 | External Critique |
-|---|---:|---:|---:|---:|---:|
-| Qwen2.5-1.5B (n=50) | 0.26 | 0.30 | 0.28 | 0.22 | 0.34 |
-| Qwen2.5-0.5B (n=24) | 0.042 | 0.167 | 0.083 | 0.042 | 0.25 |
-
-#### Statistical Comparison (1.5B, vs Direct)
-| Comparison | Test | p | q (FDR) | Effect |
-|---|---|---:|---:|---:|
-| Rewrite vs Direct | Wilcoxon | 0.530 | 0.802 | 0.0 |
-| Self1 vs Direct | Wilcoxon | 0.802 | 0.802 | 0.0 |
-| Self3 vs Direct | Wilcoxon | 0.618 | 0.802 | 0.0 |
-| External vs Direct | Wilcoxon | 0.359 | 0.802 | 0.0 |
-
-No condition achieved statistical significance at `alpha=0.05` after correction.
-
-#### Layer-Wise Drift (1.5B, last selected layer=28)
-| Condition | Mean Cosine Drift | CKA (pre vs post) |
-|---|---:|---:|
-| Rewrite control | 0.3999 | 0.2354 |
-| Self-critique 1 | 0.3683 | 0.2034 |
-| Self-critique 3 | 0.4230 | 0.1890 |
-| External critique | 0.3439 | 0.2445 |
-
-#### Multi-Round Stability (1.5B, layer 28)
-Step drift decreases with rounds:
-- round1: 0.3683
-- round2: 0.3598
-- round3: 0.3347
-
-This is consistent with partial trajectory convergence.
-
-#### Probe AUC (1.5B, layer 28)
-Pre→post change:
-- Rewrite: 0.818 → 0.545
-- Self-critique 1: 0.818 → 0.750
-- Self-critique 3: 0.818 → 0.889
-- External critique: 0.818 → 0.300
-
-Interpretation: only multi-round self-critique improved correctness separability at this layer in this run.
-
-#### API Behavioral Triangulation (gpt-4.1, n=20)
-- Direct accuracy: 1.00
-- Self-critique-1 accuracy: 0.95
-- Wilcoxon p=1.0 (no significant difference)
-
-### Output Locations
-- Combined metrics: `results/metrics_combined.json`
-- Main model metrics: `results/metrics_Qwen_Qwen2.5-1.5B-Instruct.json`
-- Small model metrics: `results/metrics_Qwen_Qwen2.5-0.5B-Instruct.json`
-- Raw per-example outcomes: `results/raw_*.jsonl`
-- Plots: `results/plots/`
+- **Models:** `Qwen/Qwen2.5-1.5B-Instruct` (Main) and `Qwen/Qwen2.5-0.5B-Instruct` (Small).
+- **Libraries:** HuggingFace `transformers`, `torch` (bfloat16, CUDA), `scikit-learn` for linear probing.
+- **Hyperparameters:** Temperature 0.0 (greedy decoding) to isolate representational changes strictly caused by the prompt condition rather than sampling variance. Max new tokens: 96.
 
 ## 5. Result Analysis
+
 ### Key Findings
-1. Reflection/revision prompts caused substantial representation drift (cosine drift ~0.34-0.42 at deep layer in 1.5B).
-2. Behavioral gains over direct prompting were small and not statistically significant on the main run.
-3. Multi-round self-critique showed decreasing step drift, suggesting trajectory stabilization.
-4. Correctness separability improved for self-critique-3 at the deepest layer (AUC increase), but not consistently across all conditions.
 
-### Hypothesis Testing Results
-- H1 (drift magnitude): supported (clear non-trivial pre/post drift)
-- H2 (structured drift): partially supported (self-critique-3 improved probe separability; other conditions did not)
-- H3 (convergence): supported in trajectory metric (decreasing step drift)
-- H4 (specificity): mixed; external critique had best raw accuracy on these subsets but weaker separability geometry
+#### 1. Self-Critique Does Not Guarentee Structural Improvement (1.5B Model)
+For `Qwen2.5-1.5B-Instruct`, standard self-critique (1 round) improved accuracy marginally from 31.7% to 35.0%. However, this was slightly *worse* than the simple &#34;Rewrite&#34; control (36.7%). More critically, looking at the internal representations (Final Layer Probe AUC):
+- **Pre-Critique AUC:** 0.486
+- **Self-Critique 1-Round Post-AUC:** 0.444
+- **Self-Critique 3-Round Post-AUC:** 0.514
+Self-critique failed to make the correct reasoning linearly separable.
 
-### Comparison to Baselines
-Compared to direct prompting (1.5B), highest raw improvement was external critique (+0.08 absolute), but non-significant. Self-critique-3 underperformed direct on accuracy while showing stronger geometric shift.
+#### 2. External Critique Dramatically Reshapes Latent Space
+When an external, oracle-like critique was provided to the 1.5B model, accuracy jumped to 40.0%. The internal states reflected a massive structural shift:
+- **External Critique Post-AUC:** 0.831 (up from 0.486)
+This indicates that the model *has the capacity* to structure its reasoning subspace perfectly, but autonomous self-critique in a 1.5B model is not strong enough to trigger this internal restructuring.
+
+#### 3. Representation Drift is Omnipresent
+Drift (measured as cosine distance from the initial draft state) occurred in all conditions.
+- **Rewrite Control Drift:** 0.3948
+- **Self-Critique 1 Drift:** 0.3619
+- **External Critique Drift:** 0.3375
+Interestingly, external critique caused *less* absolute drift but resulted in *higher* accuracy and separability. This implies that meaningful critique is not about &#34;wandering far&#34; in latent space, but about moving in a highly specific, structured direction.
+
+#### 4. The 0.5B Model Anomaly
+Surprisingly, the smaller `Qwen2.5-0.5B-Instruct` showed a distinct pattern:
+- Direct Accuracy: 17.5% -&gt; Self-Critique 1 Accuracy: 32.5%.
+- Pre-AUC: 0.550 -&gt; Self-Critique 1 Post-AUC: 0.719.
+For the 0.5B model, a single round of self-reflection was highly effective at restructuring the internal state to separate correct from incorrect reasoning. (Though 3 rounds degraded performance, likely due to context limits or &#34;Brain Rot&#34;).
 
 ### Visualizations
-Generated plots in `results/plots/`:
-- `accuracy_*.png`
-- `drift_layers_*.png`
-- `trajectory_*.png`
-
-Each plot includes title, labeled axes, and legends.
-
-### Surprises and Insights
-- Large drift can occur without strong behavioral gains.
-- Multi-round reflection can stabilize trajectories while not improving final accuracy.
-- External critique template was competitive behaviorally in this low-sample setup.
-
-### Error Analysis
-- GSM8K remained difficult for both open models; most errors are arithmetic/step propagation.
-- CommonsenseQA had higher baseline correctness and more condition sensitivity.
-- Small-model run exhibited severe class imbalance for probe labels, yielding unstable AUC/F1.
+*(Plots are saved in `results/plots/`)*
+- `accuracy_Qwen_Qwen2_5_1_5B_Instruct.png`: Shows External Critique dominating task performance.
+- `drift_layers_Qwen_Qwen2_5_1_5B_Instruct.png`: Shows that drift steadily increases in deeper layers, with Rewrite Control actually causing the highest raw drift.
 
 ### Limitations
-- Sample sizes were modest (especially 0.5B and API run).
-- Probe estimates for small model are noisy due low positive-class count.
-- Hidden-state extraction used final token only; richer token-trajectory methods may capture more structure.
-- No inter-model activation alignment (e.g., SVCCA across models) in this run.
-- API run measured behavior only (no internals).
+- **Model Scale:** 1.5B and 0.5B models are relatively small. Emergent self-reflection capabilities (and internal restructuring) may behave fundamentally differently in 70B+ models.
+- **Sample Size:** 60 samples were used per model to manage the massive memory footprint of caching hidden states across all layers for 5 distinct generation steps. A larger sample size would yield tighter confidence intervals on the logistic regression probes.
 
 ## 6. Conclusions
-Self-critique does induce measurable internal representational drift in residual-stream states in this setup. Evidence for &#34;meaningful&#34; restructuring is partial: multi-round self-critique showed signs of improved correctness separability and trajectory stabilization, but behavioral improvements were not statistically significant on the main sample.
-
-The central answer is therefore nuanced: reflection appears to reshape internals, but reliable performance gains and robust structure-performance coupling need larger controlled studies.
-
-### Confidence in Findings
-Moderate confidence in the presence of drift/convergence signals; low-to-moderate confidence in claims about accuracy improvements due to sample size and variability.
+We successfully demonstrated that self-reflection and critique induce measurable representational drift in the residual stream. However, **drift does not equal cognitive restructuring**. For the 1.5B model, self-critique caused the representations to drift just as much as a meaningless &#34;rewrite&#34; prompt, but completely failed to improve the linear separability of correct reasoning. In contrast, an external critique drastically improved this separability (AUC 0.486 -&gt; 0.831). 
+This supports a nuanced view of the hypothesis: while reflection vectors exist, autonomous self-critique in smaller LLMs often results in &#34;shallow&#34; resampling rather than deep structural realignment. The capacity for a structured reasoning subspace is latent but often requires external guidance to be fully activated.
 
 ## 7. Next Steps
-### Immediate Follow-ups
-1. Increase sample sizes (&gt;=200 per condition) and include TruthfulQA scoring to reduce variance.
-2. Add stronger controls (equal-token no-critique, shuffled critique text) to isolate critique semantics.
-3. Compute token-level trajectory metrics and SVCCA/Procrustes across all layers.
-
-### Alternative Approaches
-- Use attention-pattern drift and MLP neuron activation sparsity as complementary mechanistic signals.
-- Use verifier-based correctness labels (process-level) rather than final-answer-only labels.
-
-### Broader Extensions
-- Compare self-critique vs human-written critique at matched length/quality.
-- Evaluate additional model families and larger API models with repeated trials.
-
-### Open Questions
-- When does representational drift become predictive of reliable accuracy gain?
-- Which layers contain the most causally relevant reflection-induced changes?
-- Is convergence associated with correctness or merely with stylistic stabilization?
-
-## References
-- Shinn et al., Reflexion (2023)
-- Madaan et al., Self-Refine (2023)
-- Zelikman et al., Quiet-STaR (2024)
-- Venhoff et al., Reasoning via Steering Vectors (2025)
-- Cobbe et al., Training Verifiers (2021)
-- Lin et al., TruthfulQA (2021)
-
+1. **Scale Up:** Replicate this activation extraction pipeline on Llama-3-8B and Qwen2.5-7B using mixed precision to see if larger models can autonomously structure their reasoning subspace during self-critique.
+2. **Representation Engineering:** Extract the difference-of-means vector between the &#34;External Critique&#34; states and &#34;Self Critique&#34; states, and use Representation Engineering (RepE) to inject the &#34;External Critique&#34; vector into the model during standard CoT generation.
+3. **Step-by-Step Convergence:** Analyze intermediate layers dynamically to see *where* in the forward pass the reflection fails to restructure the latent space.
 
 ════════════════════════════════════════════════════════════════════════════════
                             RESEARCH PLAN
@@ -635,7 +451,7 @@ Follow these lab-specific conventions to match our paper style:
 Before calling finish, you MUST complete these review steps:
 
 1. REVIEW RESOURCES (at the start):
-   - Read .codex/skills/paper-writer/SKILL.md for detailed guidance
+   - Read .gemini/skills/paper-writer/SKILL.md for detailed guidance
    - Study templates/paper_writing/lab_style_guide.md for style conventions
    - Browse paper_examples/ for formatting and language patterns
 

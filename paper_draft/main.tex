@@ -1,22 +1,23 @@
 \documentclass{article}
-\usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
-\usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
-\usepackage{booktabs}  % REQUIRED: professional tables
+\usepackage[final,main]{neurips_2025}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
-\makeatletter
-\def\@trackname{} % required by neurips_2025 notice string
-\makeatother
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
 
 % Import command files
 \input{commands/math}
 \input{commands/general}
 \input{commands/macros}
 
-% Use this bibliography style:
 \bibliographystyle{plainnat}
 
-\title{Reflection Without Reliable Accuracy Gains: Measuring Representation Drift and Trajectory Stabilization Under Self-Critique}
+\title{Representation Drift Under Self-Reflection: Does Self-Critique Reshape Internal States?}
+
 \author{Ankit Singh and NeuriCo}
 
 \begin{document}

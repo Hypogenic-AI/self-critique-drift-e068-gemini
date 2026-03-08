@@ -11,16 +11,16 @@
         "datasets_dir": "/workspaces/self-critique-drift-e068-gemini/datasets",
         "code_dir": "/workspaces/self-critique-drift-e068-gemini/code"
       },
-      "log_file": "/workspaces/self-critique-drift-e068-gemini/logs/resource_finder_codex.log",
-      "transcript_file": "/workspaces/self-critique-drift-e068-gemini/logs/resource_finder_codex_transcript.jsonl",
-      "elapsed_time": 683.0973210334778
+      "log_file": "/workspaces/self-critique-drift-e068-gemini/logs/resource_finder_gemini.log",
+      "transcript_file": "/workspaces/self-critique-drift-e068-gemini/logs/resource_finder_gemini_transcript.jsonl",
+      "elapsed_time": 1208.1579172611237
     },
     "experiment_runner": {
       "success": true,
       "return_code": 0,
-      "elapsed_time": 2212.0496411323547,
-      "log_file": "/workspaces/self-critique-drift-e068-gemini/logs/execution_codex.log",
-      "transcript_file": "/workspaces/self-critique-drift-e068-gemini/logs/execution_codex_transcript.jsonl"
+      "elapsed_time": 2491.3070409297943,
+      "log_file": "/workspaces/self-critique-drift-e068-gemini/logs/execution_gemini.log",
+      "transcript_file": "/workspaces/self-critique-drift-e068-gemini/logs/execution_gemini_transcript.jsonl"
     }
   },
   "work_dir": "/workspaces/self-critique-drift-e068-gemini"

@@ -1,28 +1,35 @@
 # Representation Drift Under Self-Reflection
 
-This project tests whether self-critique changes LLM internal states (residual stream) in structured ways, beyond output-only improvements. It runs local mechanistic experiments on open models and a small behavioral API comparison.
+## Overview
+This repository contains the code, data, and findings for the research project: "Representation Drift Under Self-Reflection: Does Self-Critique Reshape Internal States?" We investigated whether prompting an LLM to self-critique its own answers induces structured shifts in its internal residual stream representations, or if it merely acts as a shallow prompt re-sampling.
 
 ## Key Findings
-- Reflection/revision prompts caused substantial layer-wise representation drift.
-- On the 1.5B main run (n=50), accuracy differences vs direct prompting were not statistically significant.
-- Multi-round self-critique showed decreasing step drift (trajectory stabilization).
-- Deep-layer probe separability improved for multi-round self-critique in the main model.
+- **Drift is omnipresent:** Asking a model to self-critique or simply "rewrite" an answer causes measurable representation drift in the residual stream (cosine distances ~0.35-0.4).
+- **Self-Critique does not guarantee structural improvement:** For Qwen2.5-1.5B, self-critique did not improve the linear separability (AUC) of correct vs. incorrect answers compared to the initial draft.
+- **External Critique is highly effective:** Injecting an external, oracle-like critique drastically restructured the internal latent space (Probe AUC improved from 0.486 to 0.831) and improved accuracy (31.7% -> 40.0%), suggesting the model has the *capacity* to structure its reasoning, but autonomous critique fails to reliably trigger it in the 1.5B model.
+- **Scale dynamics:** The smaller Qwen2.5-0.5B model actually *did* show internal restructuring under autonomous self-critique, indicating that self-reflection dynamics are highly sensitive to model scale and capacity.
 
-## Reproduce
-```bash
-source .venv/bin/activate
-python src/run_representation_drift.py --n-gsm 25 --n-csqa 25 --n-gsm-small 12 --n-csqa-small 12 --max-new-tokens 48
-```
+## How to Reproduce
+1. **Environment Setup:** Ensure you have Python 3.10+ and a CUDA-capable GPU (at least 16GB VRAM recommended for the 1.5B model).
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install torch transformers accelerate datasets scikit-learn numpy matplotlib tqdm
+   ```
 
-## Outputs
-- Main report: `REPORT.md`
-- Plan: `planning.md`
-- Script: `src/run_representation_drift.py`
-- Metrics: `results/metrics_combined.json`
-- Plots: `results/plots/`
+2. **Run the Experiment:**
+   Execute the experimental pipeline which automatically extracts hidden states and trains linear probes:
+   ```bash
+   python src/run_representation_drift.py --n-gsm 30 --n-csqa 30 --skip-openai
+   ```
+   This will output metrics, raw predictions, and plots to the `results/` directory.
 
 ## File Structure
-- `datasets/`: local benchmark data
-- `code/`: cloned baseline repos
-- `src/`: experiment code
-- `results/`: metrics, raw outputs, visualizations
+- `src/run_representation_drift.py`: Main execution script that handles model inference, hidden state extraction, linear probing, and visualization.
+- `datasets/`: Pre-downloaded subsets of GSM8K and CommonsenseQA used in the evaluation.
+- `results/`: Contains the JSON metrics output, configuration logs, and generated plots.
+- `REPORT.md`: Comprehensive final research report detailing methodology, full findings, limitations, and future work.
+- `planning.md`: The original experimental design and hypothesis decomposition.
+
+## Full Report
+Please see [REPORT.md](./REPORT.md) for the complete research methodology, experimental protocol, and detailed analysis.
